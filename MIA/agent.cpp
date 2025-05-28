@@ -1,6 +1,5 @@
 // agent.cpp
 #include "agent.h"
-#include <iostream>
 
 // Constructor implementation
 Agent::Agent(const std::string& id,

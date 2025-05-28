@@ -27,7 +27,7 @@ AgentManager& AgentManager::getInstance() {
 
 // Initializes the AgentManager
 bool AgentManager::initialize(const std::string& baseConfigFilePath, const std::string& agentsFolderPath) {
-    // 1. Load base configuration (API URL)
+    // 1. Load base configuration (API URL, default parameters, safety filters)
     if (!loadBaseConfiguration(baseConfigFilePath)) {
         std::cerr << "AgentManager Error: Failed to load base configuration from " << baseConfigFilePath << std::endl;
         return false;
@@ -57,7 +57,7 @@ bool AgentManager::initialize(const std::string& baseConfigFilePath, const std::
     return true;
 }
 
-// Loads base configuration (e.g., API base URL) from a JSON file
+// Loads base configuration (e.g., API base URL, default LLM params, safety filters) from a JSON file
 bool AgentManager::loadBaseConfiguration(const std::string& baseConfigFilePath) {
     std::ifstream file(baseConfigFilePath);
     if (!file.is_open()) {
@@ -66,66 +66,24 @@ bool AgentManager::loadBaseConfiguration(const std::string& baseConfigFilePath) 
     }
     try {
         nlohmann::json config_json = nlohmann::json::parse(file);
-        if (config_json.contains("api_url")) {
-            m_geminiApiUrl = config_json["api_url"].get<std::string>();
-        } else {
-            std::cerr << "AgentManager Error: 'api_url' not found in base config file: " << baseConfigFilePath << std::endl;
-            return false;
-        }
-        if (config_json.contains("default_model")) {
-            m_geminiDefaultModel = config_json["default_model"].get<std::string>();
-        } else {
-            std::cerr << "AgentManager Error: 'default_model' not found in base config file: " << baseConfigFilePath << std::endl;
-            return false;
-	}
-        if (config_json.contains("default_temperature")) {
-            m_geminiDefaultTemperature = config_json["default_temperature"].get<float>();
-        } else {
-            std::cerr << "AgentManager Error: 'default_temperature' not found in base config file: " << baseConfigFilePath << std::endl;
-            return false;
-	}
-        if (config_json.contains("default_top_p")) {
-            m_geminiDefaultTopP = config_json["default_top_p"].get<float>();
-        } else {
-            std::cerr << "AgentManager Error: 'default_top_p' not found in base config file: " << baseConfigFilePath << std::endl;
-            return false;
-	}
-        if (config_json.contains("default_top_k")) {
-            m_geminiDefaultTopK = config_json["default_top_k"].get<int>();
-        } else {
-            std::cerr << "AgentManager Error: 'default_top_k' not found in base config file: " << baseConfigFilePath << std::endl;
-            return false;
-	}
-        if (config_json.contains("default_max_output_tokens")) {
-            m_geminiDefaultMaxOutputTokens = config_json["default_max_output_tokens"].get<int>();
-        } else {
-            std::cerr << "AgentManager Error: 'default_max_output_tokens' not found in base config file: " << baseConfigFilePath << std::endl;
-            return false;
-	}
-        if (config_json.contains("default_filter_harassment")) {
-            m_geminiFilterHarassment = config_json["default_filter_harassment"].get<std::string>();
-        } else {
-            std::cerr << "AgentManager Error: 'default_filter_harassment' not found in base config file: " << baseConfigFilePath << std::endl;
-            return false;
-	}
-        if (config_json.contains("default_filter_hate_speech")) {
-            m_geminiFilterHateSpeech = config_json["default_filter_hate_speech"].get<std::string>();
-        } else {
-            std::cerr << "AgentManager Error: 'default_filter_hate_speech' not found in base config file: " << baseConfigFilePath << std::endl;
-            return false;
-	}
-        if (config_json.contains("default_filter_sexually_explicit")) {
-            m_geminiFilterSexuallyExplicit = config_json["default_filter_sexually_explicit"].get<std::string>();
-        } else {
-            std::cerr << "AgentManager Error: 'default_filter_sexually_explicit' not found in base config file: " << baseConfigFilePath << std::endl;
-            return false;
-	}
-        if (config_json.contains("default_filter_dangerous_content")) {
-            m_geminiFilterDangerousContent = config_json["default_filter_dangerous_content"].get<std::string>();
-        } else {
-            std::cerr << "AgentManager Error: 'default_filter_dangerous_content' not found in base config file: " << baseConfigFilePath << std::endl;
-            return false;
-	}
+
+        // API URL
+        m_geminiApiUrl = config_json.at("api_url").get<std::string>();
+
+        // Default LLM parameters
+        m_geminiDefaultModel = config_json.at("default_model").get<std::string>();
+        m_geminiDefaultTemperature = config_json.at("default_temperature").get<float>();
+        m_geminiDefaultTopP = config_json.at("default_top_p").get<float>();
+        m_geminiDefaultTopK = config_json.at("default_top_k").get<int>();
+        m_geminiDefaultMaxOutputTokens = config_json.at("default_max_output_tokens").get<int>();
+        m_geminiDefaultMaxHistoryTurns = config_json.at("default_max_history_turns").get<int>(); // NEW
+
+        // Default safety filter thresholds
+        m_geminiFilterHarassment = config_json.at("default_filter_harassment").get<std::string>();
+        m_geminiFilterHateSpeech = config_json.at("default_filter_hate_speech").get<std::string>();
+        m_geminiFilterSexuallyExplicit = config_json.at("default_filter_sexually_explicit").get<std::string>();
+        m_geminiFilterDangerousContent = config_json.at("default_filter_dangerous_content").get<std::string>();
+
     } catch (const nlohmann::json::exception& e) {
         std::cerr << "AgentManager Error: Parsing base config JSON failed: " << e.what() << std::endl;
         return false;
@@ -164,14 +122,18 @@ bool AgentManager::loadAgentsFromFolder(const std::string& agentsFolderPath) {
                 // Extract LLM parameters, providing default values if not present
                 LLMParameters params;
                 const auto& params_json = agent_json.at("parameters"); // 'at' throws if not found
-                params.model = params_json.value("model", m_geminiDefaultModel); // Default model
+                params.model = params_json.value("model", m_geminiDefaultModel);
                 params.temperature = params_json.value("temperature", m_geminiDefaultTemperature);
                 params.topP = params_json.value("top_p", m_geminiDefaultTopP);
                 params.topK = params_json.value("top_k", m_geminiDefaultTopK);
                 params.maxOutputTokens = params_json.value("max_output_tokens", m_geminiDefaultMaxOutputTokens);
+                params.maxHistoryTurns = params_json.value("max_history_turns", m_geminiDefaultMaxHistoryTurns); // NEW
 
                 // Create Agent object and store it in the map
                 m_agents.emplace(id, Agent(id, name, instructions, params));
+                // Initialize an empty history for this agent in the history map
+                m_agentHistories[id] = std::vector<nlohmann::json>();
+
                 std::cout << "AgentManager: Loaded agent '" << name << "' (ID: " << id << ") from " << entry.path().filename() << std::endl;
 
             } catch (const nlohmann::json::exception& e) {
@@ -223,20 +185,17 @@ size_t AgentManager::WriteCallback(void* contents, size_t size, size_t nmemb, vo
     return size * nmemb;
 }
 
-// Builds the JSON request body for the Gemini API call
-nlohmann::json AgentManager::buildRequestBody(const LLMParameters& params, const std::string& instructions, const std::string& userPrompt) {
+// Builds the JSON request body for the Gemini API call, using the provided message history.
+nlohmann::json AgentManager::buildRequestBody(const LLMParameters& params,
+                                                const std::vector<nlohmann::json>& messageHistory,
+                                                const std::string& filterHarassment,
+                                                const std::string& filterHateSpeech,
+                                                const std::string& filterSexuallyExplicit,
+                                                const std::string& filterDangerousContent) {
     nlohmann::json request_body;
 
-    // Combine instructions and user prompt into a single user message
-    // Gemini API often expects a conversational turn structure
-    request_body["contents"] = {
-        {
-            {"role", "user"},
-            {"parts", {
-                {"text", instructions + "\n\n" + userPrompt} // Instructions typically prepended to the first user message
-            }}
-        }
-    };
+    // The 'contents' array is the message history
+    request_body["contents"] = messageHistory;
 
     // Add generation configuration parameters
     request_body["generationConfig"] = {
@@ -246,12 +205,12 @@ nlohmann::json AgentManager::buildRequestBody(const LLMParameters& params, const
         {"maxOutputTokens", params.maxOutputTokens}
     };
 
-    // Optionally add safety settings if needed
+    // Add safety settings
     request_body["safetySettings"] = {
-    	{{"category", "HARM_CATEGORY_HARASSMENT"}, {"threshold", m_geminiFilterHarassment}},
-        {{"category", "HARM_CATEGORY_HATE_SPEECH"}, {"threshold", m_geminiFilterHateSpeech}},
-        {{"category", "HARM_CATEGORY_SEXUALLY_EXPLICIT"}, {"threshold", m_geminiFilterSexuallyExplicit}},
-        {{"category", "HARM_CATEGORY_DANGEROUS_CONTENT"}, {"threshold", m_geminiFilterDangerousContent}}
+        {{"category", "HARM_CATEGORY_HARASSMENT"}, {"threshold", filterHarassment}},
+        {{"category", "HARM_CATEGORY_HATE_SPEECH"}, {"threshold", filterHateSpeech}},
+        {{"category", "HARM_CATEGORY_SEXUALLY_EXPLICIT"}, {"threshold", filterSexuallyExplicit}},
+        {{"category", "HARM_CATEGORY_DANGEROUS_CONTENT"}, {"threshold", filterDangerousContent}}
     };
 
     return request_body;
@@ -276,7 +235,20 @@ AgentResponse AgentManager::parseGeminiResponse(const std::string& jsonResponse)
             } else {
                 result.errorMessage = "Response candidate does not contain valid 'content' or 'parts'.";
             }
-        } else if (response_json.contains("error")) {
+        } else if (response_json.contains("promptFeedback")) {
+            // Handle cases where prompt is blocked by safety settings
+            result.errorMessage = "Prompt blocked by safety settings.";
+            if (response_json["promptFeedback"].contains("blockReason")) {
+                result.errorMessage += " Reason: " + response_json["promptFeedback"]["blockReason"].get<std::string>();
+            }
+            if (response_json["promptFeedback"].contains("safetyRatings") && response_json["promptFeedback"]["safetyRatings"].is_array()) {
+                result.errorMessage += " Safety Ratings: ";
+                for (const auto& rating : response_json["promptFeedback"]["safetyRatings"]) {
+                    result.errorMessage += rating.value("category", "N/A") + "=" + rating.value("probability", "N/A") + "; ";
+                }
+            }
+        }
+        else if (response_json.contains("error")) {
             result.errorMessage = response_json["error"].value("message", "Unknown API error.");
             if (response_json["error"].contains("code")) {
                 result.httpStatusCode = response_json["error"]["code"].get<long>();
@@ -315,11 +287,66 @@ AgentResponse AgentManager::generateContent(const std::string& agentId, const st
         return result;
     }
 
+    // Get the history for this agent
+    std::vector<nlohmann::json>& currentHistory = m_agentHistories[agentId];
+
+    // --- History Management ---
+    // If history is empty, add the agent's instructions as the first 'user' turn.
+    // This sets the context for the model.
+    if (currentHistory.empty()) {
+        currentHistory.push_back({
+            {"role", "user"},
+            {"parts", {
+                {"text", agent->getInstructions()}
+            }}
+        });
+        currentHistory.push_back({ // Gemini expects alternating turns, so add an empty model response
+            {"role", "model"},
+            {"parts", {
+                {"text", "Okay."} // A placeholder to indicate the model "processed" the instructions
+            }}
+        });
+    }
+
+    // Truncate history if it exceeds maxHistoryTurns
+    // Each turn consists of a user message and a model response (2 entries in vector).
+    // So, maxHistoryTurns * 2 is the maximum number of entries we want to keep.
+    // The initial instruction turn (user + model) counts as one turn.
+    // So, if maxHistoryTurns = 5, we want (1 initial turn + 5 user-model turns) * 2 entries = 12 entries.
+    // We remove from the beginning, ensuring the instruction turn is always kept if maxHistoryTurns > 0.
+    int maxEntries = (agent->getLLMParameters().maxHistoryTurns + 1) * 2; // +1 for initial instruction turn
+    while (currentHistory.size() > maxEntries) {
+        // Remove the oldest user and model messages (2 entries from the front)
+        // Ensure we don't remove the initial instruction turn if maxHistoryTurns is positive.
+        if (currentHistory.size() >= 2 && currentHistory.size() > 2) { // Ensure at least one actual conversation turn exists beyond instructions
+            currentHistory.erase(currentHistory.begin() + 2); // Remove oldest user message after instructions
+            currentHistory.erase(currentHistory.begin() + 2); // Remove oldest model message after instructions
+        } else {
+            // This case should ideally not be reached if maxHistoryTurns is managed correctly,
+            // but acts as a safeguard.
+            break;
+        }
+    }
+
+
+    // Add the current user's prompt to the history
+    currentHistory.push_back({
+        {"role", "user"},
+        {"parts", {
+            {"text", userPrompt}
+        }}
+    });
+
     // Build the request URL
     std::string requestUrl = m_geminiApiUrl + agent->getLLMParameters().model + ":generateContent?key=" + m_geminiApiKey;
 
-    // Build the JSON request body
-    nlohmann::json request_body_json = buildRequestBody(agent->getLLMParameters(), agent->getInstructions(), userPrompt);
+    // Build the JSON request body using the full message history
+    nlohmann::json request_body_json = buildRequestBody(agent->getLLMParameters(),
+                                                        currentHistory, // Pass the full history
+                                                        m_geminiFilterHarassment,
+                                                        m_geminiFilterHateSpeech,
+                                                        m_geminiFilterSexuallyExplicit,
+                                                        m_geminiFilterDangerousContent);
     std::string request_payload = request_body_json.dump();
 
     // Reset read buffer for new response
@@ -350,7 +377,15 @@ AgentResponse AgentManager::generateContent(const std::string& agentId, const st
     } else {
         result = parseGeminiResponse(m_readBuffer);
         result.httpStatusCode = http_code; // Set the actual HTTP code from the response
-        if (!result.success && result.errorMessage.empty()) {
+        if (result.success) {
+            // NEW: Add the AI's response to the history if the API call was successful
+            currentHistory.push_back({
+                {"role", "model"},
+                {"parts", {
+                    {"text", result.generatedText}
+                }}
+            });
+        } else if (result.errorMessage.empty()) {
              // If parsing failed but no specific error message was set,
              // it might be a generic API error or unexpected format.
              result.errorMessage = "API call failed with HTTP " + std::to_string(http_code) + ". Raw response: " + m_readBuffer.substr(0, 200) + "...";

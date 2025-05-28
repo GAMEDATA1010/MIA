@@ -25,6 +25,7 @@ struct AgentResponse {
 // - Building and sending requests to the Google Gemini API.
 // - Parsing API responses.
 // - Logging API calls.
+// - NEW: Managing message history per agent.
 class AgentManager {
 public:
     // Static method to get the single instance of AgentManager (Singleton pattern)
@@ -43,6 +44,7 @@ public:
 
     // Generates content using a specific agent's personality and LLM parameters.
     // It takes the agent's ID and the user's prompt as input.
+    // This method will now manage the agent's message history internally.
     AgentResponse generateContent(const std::string& agentId, const std::string& userPrompt);
 
     // Retrieves a loaded Agent object by its ID. Returns nullptr if not found.
@@ -58,13 +60,16 @@ private:
     // Member variables for API configuration
     std::string m_geminiApiKey;
     std::string m_geminiApiUrl; // Base URL for the Gemini API
-    
+
+    // Default LLM parameters from base_config.json
     std::string m_geminiDefaultModel;
     float m_geminiDefaultTemperature;
     float m_geminiDefaultTopP;
     int m_geminiDefaultTopK;
     int m_geminiDefaultMaxOutputTokens;
-    
+    int m_geminiDefaultMaxHistoryTurns; // NEW: Default max history turns
+
+    // Safety filter thresholds from base_config.json
     std::string m_geminiFilterHarassment;
     std::string m_geminiFilterHateSpeech;
     std::string m_geminiFilterSexuallyExplicit;
@@ -76,6 +81,10 @@ private:
 
     // Map to store all loaded Agent instances, keyed by their ID
     std::map<std::string, Agent> m_agents;
+
+    // NEW: Map to store message history for each agent
+    // Key: agent ID, Value: vector of JSON message objects (alternating user/model roles)
+    std::map<std::string, std::vector<nlohmann::json>> m_agentHistories;
 
     // Private helper methods
 
@@ -92,8 +101,13 @@ private:
     // Loads all agent configurations from JSON files within a specified folder.
     bool loadAgentsFromFolder(const std::string& agentsFolderPath);
 
-    // Builds the JSON request body for the Gemini API call.
-    nlohmann::json buildRequestBody(const LLMParameters& params, const std::string& instructions, const std::string& userPrompt);
+    // Builds the JSON request body for the Gemini API call, using the provided message history.
+    nlohmann::json buildRequestBody(const LLMParameters& params,
+                                    const std::vector<nlohmann::json>& messageHistory,
+                                    const std::string& filterHarassment,
+                                    const std::string& filterHateSpeech,
+                                    const std::string& filterSexuallyExplicit,
+                                    const std::string& filterDangerousContent);
     // Parses the JSON response from the Gemini API to extract the generated text.
     AgentResponse parseGeminiResponse(const std::string& jsonResponse);
 

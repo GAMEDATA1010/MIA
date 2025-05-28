@@ -11,6 +11,7 @@ struct LLMParameters {
     float topP;
     int topK;
     int maxOutputTokens;
+    int maxHistoryTurns;
     // Add other relevant parameters as needed by the LLM API
 };
 
