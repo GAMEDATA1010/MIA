@@ -15,7 +15,9 @@ int main() {
     const char* apiKeyCStr = std::getenv("GEMINI_API_KEY");
     if (apiKeyCStr == nullptr || std::string(apiKeyCStr).empty()) {
         std::cerr << "Error: GEMINI_API_KEY environment variable not set or is empty." << std::endl;
-        std::cerr << "Please set it (e.g., 'export GEMINI_API_KEY=\"YOUR_API_KEY\"' on Linux/macOS)" << std::endl;
+        std::cerr << "Please set it with this command\nexport GEMINI_API_KEY=\"YOUR_API_KEY\" on Linux/macOS" << std::endl;
+        std::cerr << "GEMINI_API_KEY=\"YOUR_API_KEY\" on Windows (Command Prompt)" << std::endl;
+        std::cerr << "$env:GEMINI_API_KEY=\"YOUR_API_KEY\" on Windows (PowerShell)" << std::endl;
         return 1;
     }
     std::string geminiApiKey = apiKeyCStr;
@@ -28,51 +30,20 @@ int main() {
     // It will load base config, API key, initialize cURL, and load all agents.
     if (!AgentManager::getInstance().initialize(baseConfigFilePath, agentsFolderPath)) {
         std::cerr << "Application Error: Failed to initialize AgentManager. Exiting." << std::endl;
-        return 1;
+        return 2;
     }
 
     // 4. Use agents by their ID to generate content
+    std::string input;
     std::cout << "\n--- Using General Assistant (ID: general_assistant) ---" << std::endl;
-    AgentResponse assistantResponse = AgentManager::getInstance().generateContent("general_assistant", "What is the capital of Australia?");
+    std::cout << "Prompt: ";
+    std::cin >> input;
+
+    AgentResponse assistantResponse = AgentManager::getInstance().generateContent("general_assistant", input);
     if (assistantResponse.success) {
         std::cout << "General Assistant says: " << assistantResponse.generatedText << std::endl;
     } else {
         std::cerr << "General Assistant Error: " << assistantResponse.errorMessage << " (HTTP " << assistantResponse.httpStatusCode << ")" << std::endl;
-    }
-
-    std::cout << "\n--- Using C++ Code Reviewer (ID: code_reviewer) ---" << std::endl;
-    std::string codeSnippet = R"(
-#include <iostream>
-#include <vector>
-
-void processData(int* arr, int size) {
-    // This function takes a raw pointer and size.
-    // It's easy to make off-by-one errors or forget to free memory.
-    // Also, 'using namespace std;' is often avoided in headers.
-    for (int i = 0; i <= size; ++i) { // Potential off-by-one error
-        std::cout << arr[i] << std::endl;
-    }
-}
-
-int main() {
-    int* myArr = new int[10]; // Dynamically allocated array
-    // ... use myArr ...
-    // Missing 'delete[] myArr;' - memory leak!
-    processData(myArr, 10);
-    return 0;
-}
-)";
-    AgentResponse reviewerResponse = AgentManager::getInstance().generateContent("code_reviewer", "Review this C++ code for potential issues and suggest improvements:\n\n" + codeSnippet);
-    if (reviewerResponse.success) {
-        std::cout << "C++ Code Reviewer says: \n" << reviewerResponse.generatedText << std::endl;
-    } else {
-        std::cerr << "C++ Code Reviewer Error: " << reviewerResponse.errorMessage << " (HTTP " << reviewerResponse.httpStatusCode << ")" << std::endl;
-    }
-
-    std::cout << "\n--- Attempting to use a non-existent agent ---" << std::endl;
-    AgentResponse nonExistentResponse = AgentManager::getInstance().generateContent("non_existent_agent", "Hello?");
-    if (!nonExistentResponse.success) {
-        std::cerr << "Expected Error: " << nonExistentResponse.errorMessage << std::endl;
     }
 
     return 0;
