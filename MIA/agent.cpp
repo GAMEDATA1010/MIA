@@ -1,5 +1,6 @@
 // agent.cpp
 #include "agent.h"
+#include <iostream>
 
 // Constructor implementation
 Agent::Agent(const std::string& id,
@@ -11,6 +12,10 @@ Agent::Agent(const std::string& id,
       m_instructions(instructions),
       m_llmParams(params) {
     // Constructor body (can be empty if members are initialized in initializer list)
+
+	std::cout << "Successfully Initialized Agent\n";
+	std::cout << "ID: " << id << std::endl;
+	std::cout << "Name: " << name << std::endl;
 }
 
 // Getter implementations
