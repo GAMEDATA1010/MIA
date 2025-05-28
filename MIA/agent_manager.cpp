@@ -72,6 +72,60 @@ bool AgentManager::loadBaseConfiguration(const std::string& baseConfigFilePath) 
             std::cerr << "AgentManager Error: 'api_url' not found in base config file: " << baseConfigFilePath << std::endl;
             return false;
         }
+        if (config_json.contains("default_model")) {
+            m_geminiDefaultModel = config_json["default_model"].get<std::string>();
+        } else {
+            std::cerr << "AgentManager Error: 'default_model' not found in base config file: " << baseConfigFilePath << std::endl;
+            return false;
+	}
+        if (config_json.contains("default_temperature")) {
+            m_geminiDefaultTemperature = config_json["default_temperature"].get<float>();
+        } else {
+            std::cerr << "AgentManager Error: 'default_temperature' not found in base config file: " << baseConfigFilePath << std::endl;
+            return false;
+	}
+        if (config_json.contains("default_top_p")) {
+            m_geminiDefaultTopP = config_json["default_top_p"].get<float>();
+        } else {
+            std::cerr << "AgentManager Error: 'default_top_p' not found in base config file: " << baseConfigFilePath << std::endl;
+            return false;
+	}
+        if (config_json.contains("default_top_k")) {
+            m_geminiDefaultTopK = config_json["default_top_k"].get<int>();
+        } else {
+            std::cerr << "AgentManager Error: 'default_top_k' not found in base config file: " << baseConfigFilePath << std::endl;
+            return false;
+	}
+        if (config_json.contains("default_max_output_tokens")) {
+            m_geminiDefaultMaxOutputTokens = config_json["default_max_output_tokens"].get<int>();
+        } else {
+            std::cerr << "AgentManager Error: 'default_max_output_tokens' not found in base config file: " << baseConfigFilePath << std::endl;
+            return false;
+	}
+        if (config_json.contains("default_filter_harassment")) {
+            m_geminiFilterHarassment = config_json["default_filter_harassment"].get<std::string>();
+        } else {
+            std::cerr << "AgentManager Error: 'default_filter_harassment' not found in base config file: " << baseConfigFilePath << std::endl;
+            return false;
+	}
+        if (config_json.contains("default_filter_hate_speech")) {
+            m_geminiFilterHateSpeech = config_json["default_filter_hate_speech"].get<std::string>();
+        } else {
+            std::cerr << "AgentManager Error: 'default_filter_hate_speech' not found in base config file: " << baseConfigFilePath << std::endl;
+            return false;
+	}
+        if (config_json.contains("default_filter_sexually_explicit")) {
+            m_geminiFilterSexuallyExplicit = config_json["default_filter_sexually_explicit"].get<std::string>();
+        } else {
+            std::cerr << "AgentManager Error: 'default_filter_sexually_explicit' not found in base config file: " << baseConfigFilePath << std::endl;
+            return false;
+	}
+        if (config_json.contains("default_filter_dangerous_content")) {
+            m_geminiFilterDangerousContent = config_json["default_filter_dangerous_content"].get<std::string>();
+        } else {
+            std::cerr << "AgentManager Error: 'default_filter_dangerous_content' not found in base config file: " << baseConfigFilePath << std::endl;
+            return false;
+	}
     } catch (const nlohmann::json::exception& e) {
         std::cerr << "AgentManager Error: Parsing base config JSON failed: " << e.what() << std::endl;
         return false;
@@ -110,11 +164,11 @@ bool AgentManager::loadAgentsFromFolder(const std::string& agentsFolderPath) {
                 // Extract LLM parameters, providing default values if not present
                 LLMParameters params;
                 const auto& params_json = agent_json.at("parameters"); // 'at' throws if not found
-                params.model = params_json.value("model", "gemini-2.0-flash"); // Default model
-                params.temperature = params_json.value("temperature", 0.7f);
-                params.topP = params_json.value("top_p", 1.0f);
-                params.topK = params_json.value("top_k", 0);
-                params.maxOutputTokens = params_json.value("max_output_tokens", 800);
+                params.model = params_json.value("model", m_geminiDefaultModel); // Default model
+                params.temperature = params_json.value("temperature", m_geminiDefaultTemperature);
+                params.topP = params_json.value("top_p", m_geminiDefaultTopP);
+                params.topK = params_json.value("top_k", m_geminiDefaultTopK);
+                params.maxOutputTokens = params_json.value("max_output_tokens", m_geminiDefaultMaxOutputTokens);
 
                 // Create Agent object and store it in the map
                 m_agents.emplace(id, Agent(id, name, instructions, params));
@@ -193,7 +247,12 @@ nlohmann::json AgentManager::buildRequestBody(const LLMParameters& params, const
     };
 
     // Optionally add safety settings if needed
-    // request_body["safetySettings"] = { ... };
+    request_body["safetySettings"] = {
+    	{{"category", "HARM_CATEGORY_HARASSMENT"}, {"threshold", m_geminiFilterHarassment}},
+        {{"category", "HARM_CATEGORY_HATE_SPEECH"}, {"threshold", m_geminiFilterHateSpeech}},
+        {{"category", "HARM_CATEGORY_SEXUALLY_EXPLICIT"}, {"threshold", m_geminiFilterSexuallyExplicit}},
+        {{"category", "HARM_CATEGORY_DANGEROUS_CONTENT"}, {"threshold", m_geminiFilterDangerousContent}}
+    };
 
     return request_body;
 }

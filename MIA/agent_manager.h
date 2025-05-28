@@ -58,6 +58,17 @@ private:
     // Member variables for API configuration
     std::string m_geminiApiKey;
     std::string m_geminiApiUrl; // Base URL for the Gemini API
+    
+    std::string m_geminiDefaultModel;
+    float m_geminiDefaultTemperature;
+    float m_geminiDefaultTopP;
+    int m_geminiDefaultTopK;
+    int m_geminiDefaultMaxOutputTokens;
+    
+    std::string m_geminiFilterHarassment;
+    std::string m_geminiFilterHateSpeech;
+    std::string m_geminiFilterSexuallyExplicit;
+    std::string m_geminiFilterDangerousContent;
 
     // cURL related members
     CURL* m_curl; // The cURL easy handle for making HTTP requests
