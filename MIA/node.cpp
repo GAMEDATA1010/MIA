@@ -1,4 +1,4 @@
-virtual bool Node::push(nlohmann::json data) = 0;
+#include "node.h"
 
 nlohmann::json Node::pull() {
 	return m_data_out;

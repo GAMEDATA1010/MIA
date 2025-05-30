@@ -5,7 +5,7 @@
 
 class Node {
 	public:
-		virtual bool push(nlohmann::json data);
+		virtual bool push(nlohmann::json data) = 0;
 		nlohmann::json pull();
 
 	private:
