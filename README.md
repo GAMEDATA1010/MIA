@@ -1,15 +1,10 @@
-# MIA
-multi-model, subcritical chaos driven, AI chatbot
+Synapse AI is a program to allow the creation of large multi-agent & multi-process AI.
 
-To use mia you must have a google gemini api key which you can obtain for free here -> https://aistudio.google.com/apikey
+through the useage of mutliple agents emergence of complex systems can arise through simple systems. 
 
-then to se the enviroment variable you must use the following command:
-(Linux / MacOS) - export GEMINI_API_KEY="YOUR_API_KEY_HERE"
-(Windows Command Prompt) - set GEMINI_API_KEY="YOUR_API_KEY_HERE"
-(Windows PowerShell) - $env:GEMINI_API_KEY="YOUR_API_KEY_HERE"
+Agents can be added through the agents folder and using the json format can be modified (any left out parameters will be loaded by the base_config.json)
+Processes are currently in development and will be able to modify contents passed through 
 
-to build and run just use the follwing commands:
+With just these two types complex AI's can be created.
 
-make (this will build the application according to the makefile)
-
-./Mia_App (this will run the build)
+Note: the current goal is to create the baseline of synapse AI and then create an AI to modify the code for rapid feature implementation.
