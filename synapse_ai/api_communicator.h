@@ -47,7 +47,9 @@ public:
     bool push(nlohmann::json data) override;
 
     // Existing: Debugging settings getter
-    bool getDebuggingMode() const { return m_debuggingEnabled; }
+    bool getDebuggingMode() const;
+    void setDebuggingMode(bool);
+
 
 private:
     ApiCommunicator();

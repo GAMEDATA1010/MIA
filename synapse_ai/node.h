@@ -4,13 +4,14 @@
 #include <nlohmann/json.hpp>
 
 class Node {
-	public:
-		virtual bool push(nlohmann::json data) = 0;
-		nlohmann::json pull();
+public:
+    virtual ~Node() = default; // Added virtual destructor for proper polymorphic deletion
+    virtual bool push(nlohmann::json data) = 0;
+    nlohmann::json pull();
 
-	protected:
-		nlohmann::json m_data_in;
-		nlohmann::json m_data_out;
+protected:
+    nlohmann::json m_data_in;
+    nlohmann::json m_data_out;
 };
 
 #endif
