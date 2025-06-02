@@ -7,11 +7,9 @@
 // Constructor implementation
 Agent::Agent(const std::string& id,
              const std::string& name,
-             const std::string& instructions,
              const LLMParameters& params)
     : m_id(id),
       m_name(name),
-      m_instructions(instructions),
       m_llmParams(params) {
     // Constructor body
 }
@@ -23,10 +21,6 @@ const std::string& Agent::getId() const {
 
 const std::string& Agent::getName() const {
     return m_name;
-}
-
-const std::string& Agent::getInstructions() const {
-    return m_instructions;
 }
 
 const LLMParameters& Agent::getLLMParameters() const {
@@ -51,7 +45,7 @@ bool Agent::push(nlohmann::json data) {
     // 1. Prepare the JSON payload for ApiCommunicator
     // This payload contains all necessary info for the LLM API call
     nlohmann::json llm_request_payload = {
-        {"instructions", m_instructions},
+        {"instructions", m_llmParams.instructions},
         {"content", user_content},
         {"llm_params", {
             {"model", m_llmParams.model},

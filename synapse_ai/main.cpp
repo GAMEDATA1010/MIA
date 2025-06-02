@@ -48,9 +48,10 @@ int main() {
         0.9f,         // Top P
         1,            // Top K
         1024,         // Max Output Tokens
-        5             // Max History Turns
+        5,            // Max History Turns
+	""	      // System Instructions
     };
-    Agent generalAssistantAgent("general_assistant", "General Assistant", "A helpful AI assistant.", defaultParams);
+    Agent generalAssistantAgent("general_assistant", "General Assistant", defaultParams);
 
     // Register instances with the Linker using their unique IDs
     Linker::getInstance().registerNode(generalAssistantAgent.getId(), &generalAssistantAgent);

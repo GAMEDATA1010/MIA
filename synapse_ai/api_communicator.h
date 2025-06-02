@@ -42,7 +42,7 @@ public:
     bool initialize(); // No longer loads agents
 
     // NEW: Sends a request to the API and returns the response.
-    APIResponse generateContent(std::string instructions, LLMParameters params, std::string content);
+    APIResponse generateContent(LLMParameters params, std::string content);
 
     bool push(nlohmann::json data) override;
 

@@ -76,7 +76,7 @@ bool ApiCommunicator::initCurl() {
 }
 
 // Main method to generate content using the Gemini API
-APIResponse ApiCommunicator::generateContent(std::string instructions, LLMParameters params, std::string content) {
+APIResponse ApiCommunicator::generateContent(LLMParameters params, std::string content) {
     APIResponse response;
     // Clear previous response
     m_readBuffer.clear();
@@ -101,18 +101,28 @@ APIResponse ApiCommunicator::generateContent(std::string instructions, LLMParame
             { // This is the first (and likely only) message object in the "contents" array
                 {"parts", nlohmann::json::array({ // Explicitly creating a JSON array for "parts"
                     { // This is the first (and likely only) part object in the "parts" array
-                        {"text", instructions + "\n\n" + content}
+                        {"text", content}
                     }
                 })}
             }
         })},
-        // "generationConfig" should be a key in the main object, and its value is a parameters object
+	// "system instructions" is where the main persona of the LLM is created
+        {"system_instruction",
+            {
+                {"parts", nlohmann::json::array({
+                    {
+                        {"text", params.instructions}
+                    }
+                })}
+            }
+        },
+	// "generationConfig" should be a key in the main object, and its value is a parameters object
         {"generationConfig", { // This correctly forms a JSON object for "generationConfig"
             {"temperature", params.temperature},
             {"topP", params.topP},
             {"topK", params.topK},
             {"maxOutputTokens", params.maxOutputTokens}
-        }}
+	}}
     };
 
     std::string json_payload = request_body.dump();
@@ -174,12 +184,12 @@ bool ApiCommunicator::push(nlohmann::json data) {
         params.maxHistoryTurns = llm_params_json.value("maxHistoryTurns", 5);
     } else {
         // Fallback to default LLMParameters if not provided
-        params = {"gemini-pro", 0.7f, 0.9f, 1, 1024, 5};
+        params = {"gemini-pro", 0.7f, 0.9f, 1, 1024, 5, ""};
         std::cerr << "ApiCommunicator Warning: 'llm_params' not found in incoming JSON. Using default LLM parameters." << std::endl;
     }
 
     // Call the core API generation logic
-    APIResponse response = generateContent(instructions, params, content);
+    APIResponse response = generateContent(params, content);
 
     // Convert APIResponse to JSON for m_data_out
     m_data_out = nlohmann::json();
