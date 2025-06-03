@@ -28,24 +28,6 @@ int main() {
         return 1; // Indicate an error and exit
     }
 
-
-    // --- Register Nodes with the Linker ---
-    // For demonstration, we manually create an Agent and register it.
-    // In a more complex system, this would be managed by a configuration loader or AgentManager.
-    LLMParameters defaultParams = {
-        "gemini-2.0-flash-lite", // Example model name
-        0.7f,         // Temperature
-        0.9f,         // Top P
-        1,            // Top K
-        1024,         // Max Output Tokens
-        5,            // Max History Turns
-	"You are a general assistant"	      // System Instructions
-    };
-    Agent generalAssistantAgent("general_assistant", "General Assistant", defaultParams);
-
-    // Register instances with the Linker using their unique IDs
-    Linker::getInstance().registerNode(generalAssistantAgent.getId(), &generalAssistantAgent);
-
     // 3. Decide whether to enter conversation mode or developer mode
     // (You can change `devMode` flag above or implement command-line argument parsing)
     if (devMode) {
@@ -74,21 +56,7 @@ void enterDevMode() {
     std::string userPrompt;
     bool devModeActive = true;
 
-    while (devModeActive) {
-        std::cout << "\n--- Developer Mode ---" << std::endl;
-        std::cout << "1. Test Agent Communication (User Prompt -> General Agent -> Response)" << std::endl;
-        std::cout << "2. Test Linker Stream (Initial Data -> Node1 -> Node2 -> ...)" << std::endl;
-        std::cout << "3. Test Linker Multi-send (Data to multiple Nodes)" << std::endl;
-        std::cout << "4. Load Configuration (Not Implemented)" << std::endl;
-        std::cout << "5. Enable/Disable Debugging (ApiCommunicator)" << std::endl;
-        std::cout << "0. Exit Developer Mode" << std::endl;
-        std::cout << "Enter option: ";
-        std::cin >> option;
-
-        // Clear the newline character left in the buffer by std::cin >> option
-        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\\n');
-
-        switch (static_cast<DevModeOption>(option)) {
+    switch (static_cast<DevModeOption>(option)) {
             case Exit:
                 devModeActive = false;
                 break;
@@ -104,7 +72,8 @@ void enterDevMode() {
                 // In a production system, the agent would use Linker to send its response to another Node (e.g., a display node).
                 auto it = Linker::getInstance().m_registeredNodes.find("general_assistant");
                 if (it != Linker::getInstance().m_registeredNodes.end()) {
-                    Node* agentNode = it->second;
+                    // Access the raw pointer from the unique_ptr
+                    Node* agentNode = it->second.get(); // Corrected: use .get()
                     nlohmann::json agentResponse = agentNode->pull(); // Get the processed output
                     std::cout << "Agent Response (via direct pull for test): " << agentResponse.dump(2) << std::endl;
                 }
@@ -116,8 +85,7 @@ void enterDevMode() {
                 std::getline(std::cin, userPrompt);
                 nlohmann::json initialStreamData = {{"stream_start", true}, {"data", userPrompt}};
 
-                // Example stream path: User input -> General Agent -> ApiCommunicator (to simulate LLM call)
-                // In a real scenario, this stream would represent a complex workflow.
+                // Example stream path: User input -> General Agent -> ApiCommunicatorNode
                 std::vector<std::string> streamPath = {"general_assistant", "api_communicator"};
 
                 bool success = Linker::getInstance().sendStream(streamPath, initialStreamData);
@@ -125,9 +93,9 @@ void enterDevMode() {
 
                 // After the stream, the final output would be in the last node's m_data_out.
                 if (success) {
-                    auto it_last = Linker::getInstance().m_registeredNodes.find("api_communicator");
+                    auto it_last = Linker::getInstance().m_registeredNodes.find("api_communicator"); // Check last node in stream
                     if (it_last != Linker::getInstance().m_registeredNodes.end()) {
-                        Node* lastNode = it_last->second;
+                        Node* lastNode = it_last->second.get(); // Corrected: use .get()
                         std::cout << "Final Stream Output (from api_communicator): " << lastNode->pull().dump(2) << std::endl;
                     }
                 }
@@ -155,7 +123,6 @@ void enterDevMode() {
                 break;
             default:
                 std::cout << "Invalid Option" << std::endl;
-        }
     }
     std::cout << "Exiting Developer Mode...";
 }
@@ -166,7 +133,9 @@ void enterConversation(bool *conversing) {
     std::cout << "Type your message and press Enter. Type 'quit' or 'exit' to end the conversation." << std::endl;
 
     std::string userPrompt;
+    std::string agentId2 = "new_assistant";
     std::string agentId = "general_assistant"; // The ID of the primary agent for conversation
+
 
     while (true) {
         std::cout << "\nYou: ";
@@ -201,16 +170,35 @@ void enterConversation(bool *conversing) {
         // we directly pull from the agent's output after its push method has executed.
         auto it = Linker::getInstance().m_registeredNodes.find(agentId);
         if (it != Linker::getInstance().m_registeredNodes.end()) {
-            Node* targetAgentNode = it->second;
+            Node* targetAgentNode = it->second.get();
             nlohmann::json agentResponse = targetAgentNode->pull(); // Get the response from the agent
             // Assuming the agent's response JSON contains a "generated_text" field
             if (agentResponse.contains("generated_text") && agentResponse["generated_text"].is_string()) {
                 std::cout << "Mia: " << agentResponse["generated_text"].get<std::string>() << std::endl;
-            } else {
-                std::cout << "Mia: (No recognizable text response. Raw output: " << agentResponse.dump(2) << ")" << std::endl;
-            }
-        } else {
+
+		// --- Use Linker to send user prompt to the general_assistant agent ---
+                nlohmann::json message2 = {{"type", "user_input"}, {"content", agentResponse["generated_text"].get<std::string>()}};
+                if (!Linker::getInstance().send(agentId2, message2)) {
+                	std::cerr << "Failed to send prompt to agent via Linker. Skipping response." << std::endl;
+                	std::cout << ApiCommunicator::getInstance().pull() << std::endl;
+                	continue; // Skip to next iteration if send failed
+            	} else {
+            	    std::cout << "Mia: (No recognizable text response. Raw output: " << agentResponse.dump(2) << ")" << std::endl;
+            	}
+
+		auto it2 = Linker::getInstance().m_registeredNodes.find(agentId2);
+	        if (it2 != Linker::getInstance().m_registeredNodes.end()) {
+        	    Node* targetAgentNode2 = it2->second.get();
+        	    nlohmann::json agentResponse2 = targetAgentNode2->pull(); // Get the response from the agent
+        	    // Assuming the agent's response JSON contains a "generated_text" field
+        	    if (agentResponse.contains("generated_text") && agentResponse2["generated_text"].is_string()) {
+                	std::cout << "Mia: " << agentResponse2["generated_text"].get<std::string>() << std::endl;
+		    } else {
+            		std::cerr << "Error: General Assistant Agent not found for response retrieval." << std::endl;
+        	    }
+
+		}} else {
             std::cerr << "Error: General Assistant Agent not found for response retrieval." << std::endl;
         }
-    }
+    }}
 }

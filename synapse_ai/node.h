@@ -6,10 +6,12 @@
 class Node {
 public:
     virtual ~Node() = default; // Added virtual destructor for proper polymorphic deletion
+    virtual const std::string& getId() const = 0;
     virtual bool push(nlohmann::json data) = 0;
-    nlohmann::json pull();
+    virtual nlohmann::json pull() = 0;
 
 protected:
+    std::string id;
     nlohmann::json m_data_in;
     nlohmann::json m_data_out;
 };

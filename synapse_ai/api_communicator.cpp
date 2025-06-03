@@ -189,10 +189,10 @@ bool ApiCommunicator::push(nlohmann::json data) {
         params = {"gemini-pro", 0.7f, 0.9f, 1, 1024, 5, ""};
         std::cerr << "ApiCommunicator Warning: 'llm_params' not found in incoming JSON. Using default LLM parameters." << std::endl;
     }
-
+	std::cout << "generating content..." << std::endl;
     // Call the core API generation logic
     APIResponse response = generateContent(params, content);
-
+	std::cout << "content generated!" << std::endl;
     // Convert APIResponse to JSON for m_data_out
     m_data_out = nlohmann::json();
     m_data_out["success"] = response.success;
@@ -201,6 +201,10 @@ bool ApiCommunicator::push(nlohmann::json data) {
     m_data_out["http_status_code"] = response.httpStatusCode;
 
     return response.success; // Return success status of the API call
+}
+
+nlohmann::json ApiCommunicator::pull() {
+	return m_data_out;
 }
 
 // Parses the JSON response from the Gemini API

@@ -27,6 +27,10 @@ const LLMParameters& Agent::getLLMParameters() const {
     return m_llmParams;
 }
 
+nlohmann::json Agent::pull() {
+	return m_data_out;
+}
+
 // Agent's push method: Receives data (e.g., user prompt), prepares LLM request,
 // sends to ApiCommunicator via Linker, then pulls response.
 bool Agent::push(nlohmann::json data) {

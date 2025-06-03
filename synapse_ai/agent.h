@@ -30,6 +30,7 @@ public:
     const std::string& getName() const;
     const LLMParameters& getLLMParameters() const; // Provides access to the parameters
 
+    nlohmann::json pull() override;
     bool push(nlohmann::json data) override;
     bool requestContentGeneration();
 

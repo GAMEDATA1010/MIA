@@ -33,10 +33,10 @@ public:
     bool sendMulti(const std::vector<std::string>& toIds, nlohmann::json data);
 
     // Public for testing purposes (consider making private with a getter in production)
-    std::map<std::string, Node*> m_registeredNodes;
-
-
-    void registerNode(const std::string& nodeId, Node* nodePtr);
+    // Now stores unique_ptr to manage memory
+    std::map<std::string, std::unique_ptr<Node>> m_registeredNodes;
+    
+    void registerNode(const std::string& nodeId, std::unique_ptr<Node> nodePtr);
 
 private:
     // Private constructor for Singleton pattern

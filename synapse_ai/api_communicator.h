@@ -26,7 +26,7 @@ struct APIResponse {
 // - Sending requests to the Google Gemini API.
 // - Parsing API responses.
 // - Logging API calls.
-class ApiCommunicator: public Node {
+class ApiCommunicator {
 public:
     // Static method to get the single instance of ApiCommunicator (Singleton pattern)
     static ApiCommunicator& getInstance();
@@ -44,8 +44,9 @@ public:
     // NEW: Sends a request to the API and returns the response.
     APIResponse generateContent(LLMParameters params, std::string content);
 
-    bool push(nlohmann::json data) override;
+    bool push(nlohmann::json data);
 
+    nlohmann::json pull();
     // Existing: Debugging settings getter
     bool getDebuggingMode() const;
     void setDebuggingMode(bool);
@@ -56,6 +57,9 @@ private:
     ~ApiCommunicator();
 
     std::string m_apiKey;
+    nlohmann::json m_data_in;
+    nlohmann::json m_data_out;
+    
     bool m_debuggingEnabled = false; // Flag to enable/disable debugging logs
 
     CURL* m_curl; // The cURL easy handle for making HTTP requests
