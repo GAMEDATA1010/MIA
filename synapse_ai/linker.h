@@ -20,17 +20,22 @@ public:
 
     // Send data from an implicit source to a single destination Node.
     // Returns true on success, false on failure (e.g., target node not found).
-    bool send(const std::string& toId, nlohmann::json data);
+    bool sendData(const std::string& toId, nlohmann::json data);
+    bool send(const std::string& toId, const std::string& fromId);
 
     // Send data through a sequence of Nodes.
     // The data flows: initial_data -> node1 -> node2 -> ... -> last_node_output.
     // Returns true if the entire stream processing was successful.
-    bool sendStream(const std::vector<std::string>& nodeIdsInOrder, nlohmann::json initialData);
+    bool sendDataStream(const std::vector<std::string>& nodeIds, nlohmann::json initialData);
+    bool sendStream(const std::vector<std::string>& nodeIds, const std::string& fromId);
 
     // Send data to multiple destination Nodes simultaneously.
     // Each target node receives the same initial data.
     // Returns true if all sends were successful.
-    bool sendMulti(const std::vector<std::string>& toIds, nlohmann::json data);
+    bool sendDataMulti(const std::vector<std::string>& toIds, nlohmann::json data);
+    bool sendMulti(const std::vector<std::string>& toIds, const std::string& fromId);
+
+    nlohmann::json fetch(const std::string& agentId);
 
     // Public for testing purposes (consider making private with a getter in production)
     // Now stores unique_ptr to manage memory

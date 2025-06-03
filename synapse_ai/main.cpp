@@ -10,6 +10,7 @@
 // Forward declarations of functions used in main
 void enterConversation(bool *conversing);
 void enterDevMode();
+nlohmann::json agentGenerate(std::string agentId, std::string message);
 
 int main() {
     // --- IMPORTANT: Set your Google Gemini API Key as an environment variable ---
@@ -156,49 +157,37 @@ void enterConversation(bool *conversing) {
             break; // Exit conversation loop to allow main to decide next action
         }
 
-        // --- Use Linker to send user prompt to the general_assistant agent ---
-        nlohmann::json message = {{"type", "user_input"}, {"content", userPrompt}};
-        if (!Linker::getInstance().send(agentId, message)) {
-            std::cerr << "Failed to send prompt to agent via Linker. Skipping response." << std::endl;
-	    std::cout << ApiCommunicator::getInstance().pull() << std::endl;
-	    continue; // Skip to next iteration if send failed
-        }
-
         // --- Retrieve and display agent's response ---
         // In a complete Linker-based system, the agent's response would be sent back
         // via the Linker to a dedicated "console output" Node. For this example,
         // we directly pull from the agent's output after its push method has executed.
-        auto it = Linker::getInstance().m_registeredNodes.find(agentId);
-        if (it != Linker::getInstance().m_registeredNodes.end()) {
+	nlohmann::json normal = agentGenerate(agentId, userPrompt);
+	std::string normalText = normal["generated_text"].get<std::string>();
+	std::cout << normalText << std::endl;
+
+	nlohmann::json opposite = agentGenerate(agentId2, normalText);
+	std::string oppositeText = opposite["generated_text"].get<std::string>();
+	std::cout << oppositeText << std::endl;
+
+
+    }
+}
+
+nlohmann::json agentGenerate(std::string agentId, std::string prompt) {
+	// --- Use Linker to send user prompt to the general_assistant agent ---
+        nlohmann::json message = {{"type", "user_input"}, {"content", prompt}};
+        if (!Linker::getInstance().sendData(agentId, message)) {
+            std::cerr << "Failed to send prompt to agent via Linker. Skipping response." << std::endl;
+            std::cout << ApiCommunicator::getInstance().pull() << std::endl;
+            throw 1;
+	}
+
+	auto it = Linker::getInstance().m_registeredNodes.find(agentId);
+	if (it != Linker::getInstance().m_registeredNodes.end()) {
             Node* targetAgentNode = it->second.get();
             nlohmann::json agentResponse = targetAgentNode->pull(); // Get the response from the agent
-            // Assuming the agent's response JSON contains a "generated_text" field
-            if (agentResponse.contains("generated_text") && agentResponse["generated_text"].is_string()) {
-                std::cout << "Mia: " << agentResponse["generated_text"].get<std::string>() << std::endl;
-
-		// --- Use Linker to send user prompt to the general_assistant agent ---
-                nlohmann::json message2 = {{"type", "user_input"}, {"content", agentResponse["generated_text"].get<std::string>()}};
-                if (!Linker::getInstance().send(agentId2, message2)) {
-                	std::cerr << "Failed to send prompt to agent via Linker. Skipping response." << std::endl;
-                	std::cout << ApiCommunicator::getInstance().pull() << std::endl;
-                	continue; // Skip to next iteration if send failed
-            	} else {
-            	    std::cout << "Mia: (No recognizable text response. Raw output: " << agentResponse.dump(2) << ")" << std::endl;
-            	}
-
-		auto it2 = Linker::getInstance().m_registeredNodes.find(agentId2);
-	        if (it2 != Linker::getInstance().m_registeredNodes.end()) {
-        	    Node* targetAgentNode2 = it2->second.get();
-        	    nlohmann::json agentResponse2 = targetAgentNode2->pull(); // Get the response from the agent
-        	    // Assuming the agent's response JSON contains a "generated_text" field
-        	    if (agentResponse.contains("generated_text") && agentResponse2["generated_text"].is_string()) {
-                	std::cout << "Mia: " << agentResponse2["generated_text"].get<std::string>() << std::endl;
-		    } else {
-            		std::cerr << "Error: General Assistant Agent not found for response retrieval." << std::endl;
-        	    }
-
-		}} else {
-            std::cerr << "Error: General Assistant Agent not found for response retrieval." << std::endl;
-        }
-    }}
+	    return agentResponse;
+	} else {
+	    std::cerr << "Error: General Assistant Agent not found for response retrieval." << std::endl;
+	}
 }

@@ -129,7 +129,7 @@ void Linker::registerNode(const std::string& nodeId, std::unique_ptr<Node> nodeP
 }
 
 // Sends data to a single target Node
-bool Linker::send(const std::string& toId, nlohmann::json data) {
+bool Linker::sendData(const std::string& toId, nlohmann::json data) {
     auto it = m_registeredNodes.find(toId);
     if (it == m_registeredNodes.end()) {
         std::cerr << "Linker Error: Destination Node ID '" << toId << "' not found." << std::endl;
@@ -142,9 +142,15 @@ bool Linker::send(const std::string& toId, nlohmann::json data) {
     return targetNode->push(data);
 }
 
+bool Linker::send(const std::string& toId, const std::string& fromId) {
+    nlohmann::json data = Linker::getInstance().fetch(fromId);
+
+    return Linker::getInstance().sendData(toId, data);
+}
+
 // Sends data through a sequence of Nodes, where output of one becomes input for the next
-bool Linker::sendStream(const std::vector<std::string>& nodeIdsInOrder, nlohmann::json initialData) {
-    if (nodeIdsInOrder.empty()) {
+bool Linker::sendDataStream(const std::vector<std::string>& nodeIds, nlohmann::json initialData) {
+    if (nodeIds.empty()) {
         std::cerr << "Linker Error: sendStream called with empty node ID list." << std::endl;
         return false;
     }
@@ -152,8 +158,8 @@ bool Linker::sendStream(const std::vector<std::string>& nodeIdsInOrder, nlohmann
     nlohmann::json currentData = initialData;
     bool success = true;
 
-    for (size_t i = 0; i < nodeIdsInOrder.size(); ++i) {
-        const std::string& nodeId = nodeIdsInOrder[i];
+    for (size_t i = 0; i < nodeIds.size(); ++i) {
+        const std::string& nodeId = nodeIds[i];
         auto it = m_registeredNodes.find(nodeId);
         if (it == m_registeredNodes.end()) {
             std::cerr << "Linker Error: Node ID '" << nodeId << "' in stream not found." << std::endl;
@@ -179,8 +185,14 @@ bool Linker::sendStream(const std::vector<std::string>& nodeIdsInOrder, nlohmann
     return success;
 }
 
+bool Linker::sendStream(const std::vector<std::string>& nodeIds, const std::string& fromId) {
+    nlohmann::json data = Linker::getInstance().fetch(fromId);
+
+    return Linker::getInstance().sendDataStream(nodeIds, data);
+}
+
 // Sends the same data to multiple target Nodes
-bool Linker::sendMulti(const std::vector<std::string>& toIds, nlohmann::json data) {
+bool Linker::sendDataMulti(const std::vector<std::string>& toIds, nlohmann::json data) {
     if (toIds.empty()) {
         std::cerr << "Linker Warning: sendMulti called with empty destination list. No data sent." << std::endl;
         return true;
@@ -189,7 +201,7 @@ bool Linker::sendMulti(const std::vector<std::string>& toIds, nlohmann::json dat
     bool allSentSuccessfully = true;
     for (const std::string& toId : toIds) {
         // Reuse the single send method for each recipient
-        if (!send(toId, data)) { // send() already handles unique_ptr dereferencing
+        if (!sendData(toId, data)) { // send() already handles unique_ptr dereferencing
             allSentSuccessfully = false; // If any single send fails, the overall multi-send fails
         }
     }
@@ -197,3 +209,21 @@ bool Linker::sendMulti(const std::vector<std::string>& toIds, nlohmann::json dat
     
 }
 
+bool Linker::sendMulti(const std::vector<std::string>& nodeIds, const std::string& fromId) {
+    nlohmann::json data = Linker::getInstance().fetch(fromId);
+
+    return Linker::getInstance().sendDataMulti(nodeIds, data);
+}
+
+nlohmann::json Linker::fetch(const std::string& nodeId) {
+    auto it = m_registeredNodes.find(nodeId);
+    if (it == m_registeredNodes.end()) {
+        std::cerr << "Linker Error: Destination Node ID '" << nodeId << "' not found." << std::endl;
+    }
+
+    // Access the raw pointer from the unique_ptr to call push()
+    Node* targetNode = it->second.get();
+    std::cout << "Linker: Fetching data from Node '" << nodeId << "'" << std::endl;
+    return targetNode->pull();
+
+}
