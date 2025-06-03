@@ -95,6 +95,8 @@ APIResponse ApiCommunicator::generateContent(LLMParameters params, std::string c
 
     std::string url = "https://generativelanguage.googleapis.com/v1beta/models/" + params.model + ":generateContent?key=" + m_apiKey;
 
+    std::cout << params.instructions << std::endl;
+
     nlohmann::json request_body = {
         // "contents" should be a key in the main object, and its value is an array of message objects
         {"contents", nlohmann::json::array({ // Explicitly creating a JSON array for "contents"
@@ -169,7 +171,6 @@ bool ApiCommunicator::push(nlohmann::json data) {
     m_data_in = data; // Store incoming data
 
     // Extract parameters from the incoming JSON
-    std::string instructions = data.value("instructions", "");
     std::string content = data.value("content", "");
     LLMParameters params;
 
@@ -177,6 +178,7 @@ bool ApiCommunicator::push(nlohmann::json data) {
     if (data.contains("llm_params")) {
         nlohmann::json llm_params_json = data["llm_params"];
         params.model = llm_params_json.value("model", "gemini-pro");
+	params.instructions = llm_params_json.value("instructions","");
         params.temperature = llm_params_json.value("temperature", 0.7f);
         params.topP = llm_params_json.value("topP", 0.9f);
         params.topK = llm_params_json.value("topK", 1);

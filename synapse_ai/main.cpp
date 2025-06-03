@@ -22,22 +22,12 @@ int main() {
     bool devMode = false; // Set to true to start directly in dev mode if needed for testing
     bool conversing = true; // Controls the main conversation loop
 
-    // 1. Get API Key from environment variable
-    const char* apiKeyCStr = std::getenv("GEMINI_API_KEY");
-    if (apiKeyCStr == nullptr || std::string(apiKeyCStr).empty()) {
-        std::cerr << "Error: GEMINI_API_KEY environment variable not set or is empty." << std::endl;
-        std::cerr << "Please set it (e.g., 'export GEMINI_API_KEY=\\\"YOUR_API_KEY\\\"' on Linux/macOS)" << std::endl;
-        std::cerr << "       (e.g., 'set GEMINI_API_KEY=\\\"YOUR_API_KEY\\\"' on Windows Command Prompt)" << std::endl;
-        std::cerr << "       (e.g., '$env:GEMINI_API_KEY=\\\"YOUR_API_KEY\\\"' on Windows PowerShell)" << std::endl;
+    Linker& linker = Linker::getInstance();
+    if (!linker.initialize()) {
+        std::cerr << "Failed to initialize Linker. Exiting." << std::endl;
         return 1; // Indicate an error and exit
     }
 
-    // 2. Initialize ApiCommunicator (Singleton instance)
-    ApiCommunicator& apiCommunicator = ApiCommunicator::getInstance();
-    if (!apiCommunicator.initialize()) {
-        std::cerr << "Failed to initialize ApiCommunicator. Exiting." << std::endl;
-        return 1; // Indicate an error and exit
-    }
 
     // --- Register Nodes with the Linker ---
     // For demonstration, we manually create an Agent and register it.
@@ -49,15 +39,12 @@ int main() {
         1,            // Top K
         1024,         // Max Output Tokens
         5,            // Max History Turns
-	""	      // System Instructions
+	"You are a general assistant"	      // System Instructions
     };
     Agent generalAssistantAgent("general_assistant", "General Assistant", defaultParams);
 
     // Register instances with the Linker using their unique IDs
     Linker::getInstance().registerNode(generalAssistantAgent.getId(), &generalAssistantAgent);
-    // The ApiCommunicator is also a Node; register it by a descriptive ID.
-    Linker::getInstance().registerNode("api_communicator", &ApiCommunicator::getInstance());
-
 
     // 3. Decide whether to enter conversation mode or developer mode
     // (You can change `devMode` flag above or implement command-line argument parsing)

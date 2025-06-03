@@ -12,13 +12,11 @@ public:
     // Singleton pattern: Get the single instance of the Linker
     static Linker& getInstance();
 
+    bool initialize();
+
     // Delete copy constructor and assignment operator to prevent copying
     Linker(const Linker&) = delete;
     Linker& operator=(const Linker&) = delete;
-
-    // Register a Node with the Linker. The Linker needs to know about all
-    // Nodes it might send data to.
-    void registerNode(const std::string& nodeId, Node* nodePtr);
 
     // Send data from an implicit source to a single destination Node.
     // Returns true on success, false on failure (e.g., target node not found).
@@ -37,11 +35,19 @@ public:
     // Public for testing purposes (consider making private with a getter in production)
     std::map<std::string, Node*> m_registeredNodes;
 
+
+    void registerNode(const std::string& nodeId, Node* nodePtr);
+
 private:
     // Private constructor for Singleton pattern
     Linker();
     // Private destructor for Singleton (default is typically fine)
     ~Linker() = default;
+
+    
+    // Register a Node with the Linker. The Linker needs to know about all
+    // Nodes it might send data to.
+    //void registerNode(const std::string& nodeId, Node* nodePtr);
 };
 
 #endif // LINKER_H

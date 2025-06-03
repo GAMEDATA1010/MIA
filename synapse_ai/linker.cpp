@@ -1,4 +1,5 @@
 #include "linker.h"
+#include "api_communicator.h"
 #include <iostream> // For logging and error messages
 
 // Static method to get the single instance of Linker (Singleton implementation)
@@ -10,6 +11,29 @@ Linker& Linker::getInstance() {
 // Private constructor implementation
 Linker::Linker() {
     // Any Linker-specific initialization can go here
+}
+
+bool Linker::initialize() {
+    // 1. Get API Key from environment variable
+    const char* apiKeyCStr = std::getenv("GEMINI_API_KEY");
+    if (apiKeyCStr == nullptr || std::string(apiKeyCStr).empty()) {
+        std::cerr << "Error: GEMINI_API_KEY environment variable not set or is empty." << std::endl;
+        std::cerr << "Please set it (e.g., 'export GEMINI_API_KEY=\\\"YOUR_API_KEY\\\"' on Linux/macOS)" << std::endl;
+        std::cerr << "       (e.g., 'set GEMINI_API_KEY=\\\"YOUR_API_KEY\\\"' on Windows Command Prompt)" << std::endl;
+        std::cerr << "       (e.g., '$env:GEMINI_API_KEY=\\\"YOUR_API_KEY\\\"' on Windows PowerShell)" << std::endl;
+        return false; // Indicate an error and exit
+    }
+
+    // 2. Initialize ApiCommunicator (Singleton instance)
+    ApiCommunicator& apiCommunicator = ApiCommunicator::getInstance();
+    if (!apiCommunicator.initialize()) {
+        std::cerr << "Failed to initialize ApiCommunicator. Exiting." << std::endl;
+        return false; // Indicate an error and exit
+    }
+
+    // The ApiCommunicator is also a Node; register it by a descriptive ID.
+    Linker::getInstance().registerNode("api_communicator", &ApiCommunicator::getInstance());
+    return true;
 }
 
 // Registers a Node with its ID

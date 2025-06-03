@@ -45,11 +45,11 @@ bool Agent::push(nlohmann::json data) {
     // 1. Prepare the JSON payload for ApiCommunicator
     // This payload contains all necessary info for the LLM API call
     nlohmann::json llm_request_payload = {
-        {"instructions", m_llmParams.instructions},
         {"content", user_content},
         {"llm_params", {
             {"model", m_llmParams.model},
-            {"temperature", m_llmParams.temperature},
+            {"instructions", m_llmParams.instructions},
+	    {"temperature", m_llmParams.temperature},
             {"topP", m_llmParams.topP},
             {"topK", m_llmParams.topK},
             {"maxOutputTokens", m_llmParams.maxOutputTokens},
