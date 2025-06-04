@@ -10,7 +10,7 @@
 #include "timer.h"
 
 // Forward declarations of functions used in main
-void enterConversation(bool *conversing, Linker& linker);
+void enterConversation(bool *conversing, Linker& linker, Timer& timer);
 void enterDevMode();
 nlohmann::json agentGenerate(std::string agentId, std::string message, Linker& linker);
 
@@ -41,7 +41,7 @@ int main() {
     if (devMode) {
         enterDevMode();
     } else {
-        enterConversation(&conversing, linker);
+        enterConversation(&conversing, linker, timer);
     }
 
     // Program exits after conversation or dev mode.
@@ -137,17 +137,13 @@ void enterDevMode() {
 }
 
 // Function to handle the main conversation loop
-void enterConversation(bool *conversing, Linker& linker) {
+void enterConversation(bool *conversing, Linker& linker, Timer& timer) {
     std::cout << "\n--- Welcome to the General Assistant ---\n" << std::endl;
     std::cout << "Type your message and press Enter. Type 'quit' or 'exit' to end the conversation." << std::endl;
 
     std::string userPrompt;
     std::string agent_mia = "new_assistant";
     std::string agent_optimizer = "general_assistant"; // The ID of the primary agent for conversation
-
-    auto start = std::chrono::high_resolution_clock::now();
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
     while (true) {
         std::cout << "\nYou: ";
@@ -173,19 +169,16 @@ void enterConversation(bool *conversing, Linker& linker) {
         // via the Linker to a dedicated "console output" Node. For this example,
         // we directly pull from the agent's output after its push method has executed.
 	
-	start = std::chrono::high_resolution_clock::now();
+	timer.start();
 
 	linker.sendData(agent_optimizer, {{"type","user_input"}, {"content", userPrompt}});
 	linker.send(agent_mia, agent_optimizer);
-	
-	end = std::chrono::high_resolution_clock::now();
 
-	duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+	timer.capture("Synapse Response");
 
 	std::cout << linker.fetch(agent_optimizer)["generated_text"].get<std::string>() << std::endl;
 
 	std::cout << linker.fetch(agent_mia)["generated_text"].get<std::string>() << std::endl;
-    
-        std::cout << "Execution time was: " << duration.count() << " milliseconds." << std::endl;
+	timer.log();
     }
 }

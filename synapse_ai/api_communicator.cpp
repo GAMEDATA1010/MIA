@@ -6,7 +6,6 @@
 #include <stdexcept> // For std::runtime_error
 #include <cstdlib> // For std::getenv
 #include <algorithm> // For std::min
-#include <chrono>
 
 // Initialize the static member buffer for cURL callback
 std::string ApiCommunicator::m_readBuffer;
@@ -96,7 +95,7 @@ APIResponse ApiCommunicator::generateContent(LLMParameters params, std::string c
     // This is more efficient than cleanup/re-init for each request.
     curl_easy_reset(m_curl);
 
-    // Re-apply common options and headers after reset
+    //Re-apply common options and headers after reset
     curl_easy_setopt(m_curl, CURLOPT_WRITEFUNCTION, WriteCallback);
     curl_easy_setopt(m_curl, CURLOPT_WRITEDATA, &m_readBuffer);
     curl_easy_setopt(m_curl, CURLOPT_HTTPHEADER, m_headers); // Re-apply the headers!
@@ -137,11 +136,7 @@ APIResponse ApiCommunicator::generateContent(LLMParameters params, std::string c
     curl_easy_setopt(m_curl, CURLOPT_POSTFIELDS, json_payload.c_str());
     curl_easy_setopt(m_curl, CURLOPT_POSTFIELDSIZE, json_payload.length()); // Important for POST requests
 
-    // --- Timing measurements ---
-    auto start = std::chrono::high_resolution_clock::now();
-    CURLcode res = curl_easy_perform(m_curl);
-    auto curl_perform_complete = std::chrono::high_resolution_clock::now();
-    // --- End Timing measurements ---
+    CURLcode res = curl_easy_perform(m_curl); // The longest part of the program and most prone to bottlenecks
 
     long http_code = 0;
     curl_easy_getinfo(m_curl, CURLINFO_RESPONSE_CODE, &http_code);
@@ -162,13 +157,7 @@ APIResponse ApiCommunicator::generateContent(LLMParameters params, std::string c
         }
     }
 
-    auto parsing_complete = std::chrono::high_resolution_clock::now();
-
-    // Output timing for debugging performance
-    std::cout << "curl_perform duration: " << std::chrono::duration_cast<std::chrono::milliseconds>(curl_perform_complete - start).count() << "ms" << std::endl;
-    std::cout << "parsing duration: " << std::chrono::duration_cast<std::chrono::milliseconds>(parsing_complete - curl_perform_complete).count() << "ms" << std::endl;
-
-    logApiCall("N/A", json_payload, m_readBuffer, response); // agentId is not directly available here
+    //logApiCall("N/A", json_payload, m_readBuffer, response); // agentId is not directly available here
 
     return response;
 }
@@ -206,8 +195,6 @@ bool ApiCommunicator::push(nlohmann::json data) {
     m_data_out["generated_text"] = response.generatedText;
     m_data_out["error_message"] = response.errorMessage;
     m_data_out["http_status_code"] = response.httpStatusCode;
-
-    std::cout << m_data_out << std::endl;
 
     return response.success; // Return success status of the API call
 }
