@@ -69,7 +69,6 @@ bool Agent::push(nlohmann::json data) {
     // 2. Send the LLM request payload to the ApiCommunicator Node via the Linker
     bool send_success = Linker::getInstance().sendData("api_communicator", llm_request_payload);
 
-    std::cout << llm_request_payload << std::endl;
     if (!send_success) {
         std::cerr << "Agent '" << m_id << "': Failed to send LLM request to ApiCommunicator via Linker." << std::endl;
         m_data_out = {{"success", false}, {"error_message", "Failed to communicate with API."}};
