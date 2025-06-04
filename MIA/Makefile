@@ -28,7 +28,7 @@ LIB_PATHS = -L$(CURL_LIB_DIR)
 LIBS = -lcurl -lstdc++fs
 
 # Output executable name
-TARGET = Mia_App
+TARGET = synapse
 
 # --- Source File Discovery ---
 # Find all .cpp files in the current directory
