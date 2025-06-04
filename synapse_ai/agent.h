@@ -35,7 +35,7 @@ public:
     bool requestContentGeneration();
 
 private:
-    const std::string m_id; // A unique identifier for the agent type
+    const std::string m_id;
     const std::string m_name;
     const LLMParameters m_llmParams; // Parameters specific to this agent
 };

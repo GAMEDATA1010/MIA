@@ -11,7 +11,7 @@ public:
     virtual nlohmann::json pull() = 0;
 
 protected:
-    std::string id;
+    std::string m_id;
     nlohmann::json m_data_in;
     nlohmann::json m_data_out;
 };

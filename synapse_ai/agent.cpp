@@ -35,16 +35,19 @@ nlohmann::json Agent::pull() {
 // sends to ApiCommunicator via Linker, then pulls response.
 bool Agent::push(nlohmann::json data) {
     m_data_in = data; // Store the incoming data (e.g., user prompt JSON)
-
+    std::string user_content;
     // Ensure the incoming data has a "content" field (the actual user prompt)
-    if (!m_data_in.contains("content") || !m_data_in["content"].is_string()) {
-        std::cerr << "Agent Error: Incoming data to push() does not contain a 'content' string." << std::endl;
+    if (m_data_in.contains("content") && m_data_in["content"].is_string()) { 
+    	user_content = m_data_in["content"].get<std::string>();
+    } else if (m_data_in.contains("generated_text") && m_data_in["generated_text"].is_string()) {
+    	user_content = m_data_in["generated_text"].get<std::string>();
+    } else {
+	std::cerr << "Agent Error: Incoming data to push() does not contain a 'content' or 'generated_text' string." << std::endl;
         // Set an error message in m_data_out so pull() can retrieve it
         m_data_out = {{"success", false}, {"error_message", "Invalid input format to Agent push()."}};
-        return false;
+	std::cout << m_data_in << std::endl;
+	return false;
     }
-
-    std::string user_content = m_data_in["content"].get<std::string>();
 
     // 1. Prepare the JSON payload for ApiCommunicator
     // This payload contains all necessary info for the LLM API call

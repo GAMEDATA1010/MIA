@@ -3,14 +3,16 @@
 #include <string> // For std::string and std::getline
 #include <cstdlib> // For getenv
 #include <limits> // For std::numeric_limits (used for std::cin.ignore)
+#include <chrono> 
 #include "agent.h"
 #include "api_communicator.h"
 #include "linker.h" // Include the Linker header
+#include "timer.h"
 
 // Forward declarations of functions used in main
-void enterConversation(bool *conversing);
+void enterConversation(bool *conversing, Linker& linker);
 void enterDevMode();
-nlohmann::json agentGenerate(std::string agentId, std::string message);
+nlohmann::json agentGenerate(std::string agentId, std::string message, Linker& linker);
 
 int main() {
     // --- IMPORTANT: Set your Google Gemini API Key as an environment variable ---
@@ -23,18 +25,23 @@ int main() {
     bool devMode = false; // Set to true to start directly in dev mode if needed for testing
     bool conversing = true; // Controls the main conversation loop
 
+    Timer timer;
     Linker& linker = Linker::getInstance();
     if (!linker.initialize()) {
         std::cerr << "Failed to initialize Linker. Exiting." << std::endl;
         return 1; // Indicate an error and exit
     }
 
+    timer.capture("Linker Initialization");
+    std::cout << "Linker Initialized!" << std::endl; 
+    timer.log();
+
     // 3. Decide whether to enter conversation mode or developer mode
     // (You can change `devMode` flag above or implement command-line argument parsing)
     if (devMode) {
         enterDevMode();
     } else {
-        enterConversation(&conversing);
+        enterConversation(&conversing, linker);
     }
 
     // Program exits after conversation or dev mode.
@@ -56,7 +63,8 @@ void enterDevMode() {
     int option;
     std::string userPrompt;
     bool devModeActive = true;
-
+    DevModeOption choice;
+    
     switch (static_cast<DevModeOption>(option)) {
             case Exit:
                 devModeActive = false;
@@ -129,14 +137,17 @@ void enterDevMode() {
 }
 
 // Function to handle the main conversation loop
-void enterConversation(bool *conversing) {
+void enterConversation(bool *conversing, Linker& linker) {
     std::cout << "\n--- Welcome to the General Assistant ---\n" << std::endl;
     std::cout << "Type your message and press Enter. Type 'quit' or 'exit' to end the conversation." << std::endl;
 
     std::string userPrompt;
-    std::string agentId2 = "new_assistant";
-    std::string agentId = "general_assistant"; // The ID of the primary agent for conversation
+    std::string agent_mia = "new_assistant";
+    std::string agent_optimizer = "general_assistant"; // The ID of the primary agent for conversation
 
+    auto start = std::chrono::high_resolution_clock::now();
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
     while (true) {
         std::cout << "\nYou: ";
@@ -161,33 +172,20 @@ void enterConversation(bool *conversing) {
         // In a complete Linker-based system, the agent's response would be sent back
         // via the Linker to a dedicated "console output" Node. For this example,
         // we directly pull from the agent's output after its push method has executed.
-	nlohmann::json normal = agentGenerate(agentId, userPrompt);
-	std::string normalText = normal["generated_text"].get<std::string>();
-	std::cout << normalText << std::endl;
+	
+	start = std::chrono::high_resolution_clock::now();
 
-	nlohmann::json opposite = agentGenerate(agentId2, normalText);
-	std::string oppositeText = opposite["generated_text"].get<std::string>();
-	std::cout << oppositeText << std::endl;
+	linker.sendData(agent_optimizer, {{"type","user_input"}, {"content", userPrompt}});
+	linker.send(agent_mia, agent_optimizer);
+	
+	end = std::chrono::high_resolution_clock::now();
 
+	duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
+	std::cout << linker.fetch(agent_optimizer)["generated_text"].get<std::string>() << std::endl;
+
+	std::cout << linker.fetch(agent_mia)["generated_text"].get<std::string>() << std::endl;
+    
+        std::cout << "Execution time was: " << duration.count() << " milliseconds." << std::endl;
     }
-}
-
-nlohmann::json agentGenerate(std::string agentId, std::string prompt) {
-	// --- Use Linker to send user prompt to the general_assistant agent ---
-        nlohmann::json message = {{"type", "user_input"}, {"content", prompt}};
-        if (!Linker::getInstance().sendData(agentId, message)) {
-            std::cerr << "Failed to send prompt to agent via Linker. Skipping response." << std::endl;
-            std::cout << ApiCommunicator::getInstance().pull() << std::endl;
-            throw 1;
-	}
-
-	auto it = Linker::getInstance().m_registeredNodes.find(agentId);
-	if (it != Linker::getInstance().m_registeredNodes.end()) {
-            Node* targetAgentNode = it->second.get();
-            nlohmann::json agentResponse = targetAgentNode->pull(); // Get the response from the agent
-	    return agentResponse;
-	} else {
-	    std::cerr << "Error: General Assistant Agent not found for response retrieval." << std::endl;
-	}
 }

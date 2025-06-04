@@ -6,13 +6,15 @@
 #include <stdexcept> // For std::runtime_error
 #include <cstdlib> // For std::getenv
 #include <algorithm> // For std::min
+#include <chrono>
 
 // Initialize the static member buffer for cURL callback
 std::string ApiCommunicator::m_readBuffer;
 
 // Private constructor implementation (Singleton)
-ApiCommunicator::ApiCommunicator() : m_curl(nullptr) {
-    // Constructor body, cURL is initialized in initCurl()
+ApiCommunicator::ApiCommunicator() : m_curl(nullptr), m_headers(nullptr) {
+    // m_curl is initialized in initialize()
+    // curl_global_init() should be called only once globally, handled in initialize()
 }
 
 // Destructor implementation
@@ -28,7 +30,21 @@ ApiCommunicator& ApiCommunicator::getInstance() {
 
 // Initializes the ApiCommunicator
 bool ApiCommunicator::initialize() {
-    // 2. Get API Key from environment variable
+    // 1. Global cURL initialization (call only once)
+    CURLcode global_res = curl_global_init(CURL_GLOBAL_DEFAULT);
+    if (global_res != CURLE_OK) {
+        std::cerr << "curl_global_init() failed: " << curl_easy_strerror(global_res) << std::endl;
+        return false;
+    }
+
+    // 2. Initialize cURL easy handle (call once, reuse thereafter)
+    m_curl = curl_easy_init();
+    if (!m_curl) {
+        std::cerr << "curl_easy_init() failed." << std::endl;
+        return false;
+    }
+
+    // 3. Get API Key from environment variable
     const char* apiKeyCStr = std::getenv("GEMINI_API_KEY");
     if (apiKeyCStr == nullptr || std::string(apiKeyCStr).empty()) {
         std::cerr << "ApiCommunicator Error: GEMINI_API_KEY environment variable not set. Please set it before running." << std::endl;
@@ -36,18 +52,30 @@ bool ApiCommunicator::initialize() {
     }
     m_apiKey = apiKeyCStr;
 
-    // 3. Initialize cURL
-    if (!initCurl()) {
-        std::cerr << "ApiCommunicator Error: Failed to initialize cURL." << std::endl;
-        return false;
-    }
+    // 4. Set static headers ONCE for the handle
+    // These headers will be reused for all requests.
+    // If curl_easy_reset() is used, these will need to be re-applied.
+    m_headers = curl_slist_append(m_headers, "Content-Type: application/json");
+    m_headers = curl_slist_append(m_headers, "Accept: application/json");
+    curl_easy_setopt(m_curl, CURLOPT_HTTPHEADER, m_headers);
+
+    // Set common options here that don't change per request
+    curl_easy_setopt(m_curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+    curl_easy_setopt(m_curl, CURLOPT_WRITEDATA, &m_readBuffer);
+    // Consider adding a timeout
+    // curl_easy_setopt(m_curl, CURLOPT_TIMEOUT, 30L); // 30 second timeout
+
     return true;
 }
 
 // Cleans up cURL resources
 void ApiCommunicator::cleanupCurl() {
+    if (m_headers) {
+        curl_slist_free_all(m_headers); // Free headers
+        m_headers = nullptr;
+    }
     if (m_curl) {
-        curl_easy_cleanup(m_curl);
+        curl_easy_cleanup(m_curl); // Clean up CURL handle
         m_curl = nullptr;
     }
     curl_global_cleanup(); // Clean up libcurl's global resources
@@ -59,56 +87,32 @@ size_t ApiCommunicator::WriteCallback(void* contents, size_t size, size_t nmemb,
     return size * nmemb;
 }
 
-// Initializes the cURL library
-bool ApiCommunicator::initCurl() {
-    CURLcode res = curl_global_init(CURL_GLOBAL_DEFAULT);
-    if (res != CURLE_OK) {
-        std::cerr << "curl_global_init() failed: " << curl_easy_strerror(res) << std::endl;
-        return false;
-    }
-
-    m_curl = curl_easy_init();
-    if (!m_curl) {
-        std::cerr << "curl_easy_init() failed." << std::endl;
-        return false;
-    }
-    return true;
-}
-
 // Main method to generate content using the Gemini API
 APIResponse ApiCommunicator::generateContent(LLMParameters params, std::string content) {
     APIResponse response;
-    // Clear previous response
-    m_readBuffer.clear();
+    m_readBuffer.clear(); // Clear previous response data
 
-    // Reinitialize cURL handle for each request to ensure clean state
-    if (m_curl) {
-        curl_easy_cleanup(m_curl);
-        m_curl = nullptr;
-    }
-    m_curl = curl_easy_init();
-    if (!m_curl) {
-        response.success = false;
-        response.errorMessage = "Failed to reinitialize cURL handle.";
-        return response;
-    }
+    // Reset the cURL handle to clear previous options, but keep the handle itself.
+    // This is more efficient than cleanup/re-init for each request.
+    curl_easy_reset(m_curl);
+
+    // Re-apply common options and headers after reset
+    curl_easy_setopt(m_curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+    curl_easy_setopt(m_curl, CURLOPT_WRITEDATA, &m_readBuffer);
+    curl_easy_setopt(m_curl, CURLOPT_HTTPHEADER, m_headers); // Re-apply the headers!
 
     std::string url = "https://generativelanguage.googleapis.com/v1beta/models/" + params.model + ":generateContent?key=" + m_apiKey;
 
-    std::cout << params.instructions << std::endl;
-
     nlohmann::json request_body = {
-        // "contents" should be a key in the main object, and its value is an array of message objects
-        {"contents", nlohmann::json::array({ // Explicitly creating a JSON array for "contents"
-            { // This is the first (and likely only) message object in the "contents" array
-                {"parts", nlohmann::json::array({ // Explicitly creating a JSON array for "parts"
-                    { // This is the first (and likely only) part object in the "parts" array
+        {"contents", nlohmann::json::array({
+            {
+                {"parts", nlohmann::json::array({
+                    {
                         {"text", content}
                     }
                 })}
             }
         })},
-	// "system instructions" is where the main persona of the LLM is created
         {"system_instruction",
             {
                 {"parts", nlohmann::json::array({
@@ -118,33 +122,30 @@ APIResponse ApiCommunicator::generateContent(LLMParameters params, std::string c
                 })}
             }
         },
-	// "generationConfig" should be a key in the main object, and its value is a parameters object
-        {"generationConfig", { // This correctly forms a JSON object for "generationConfig"
+        {"generationConfig", {
             {"temperature", params.temperature},
             {"topP", params.topP},
             {"topK", params.topK},
             {"maxOutputTokens", params.maxOutputTokens}
-	}}
+        }}
     };
 
     std::string json_payload = request_body.dump();
 
+    // Set URL and POST data for this specific request
     curl_easy_setopt(m_curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(m_curl, CURLOPT_POSTFIELDS, json_payload.c_str());
-    curl_easy_setopt(m_curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-    curl_easy_setopt(m_curl, CURLOPT_WRITEDATA, &m_readBuffer);
+    curl_easy_setopt(m_curl, CURLOPT_POSTFIELDSIZE, json_payload.length()); // Important for POST requests
 
-    // Set headers
-    struct curl_slist* headers = nullptr;
-    headers = curl_slist_append(headers, "Content-Type: application/json");
-    headers = curl_slist_append(headers, "Accept: application/json");
-    curl_easy_setopt(m_curl, CURLOPT_HTTPHEADER, headers);
-
+    // --- Timing measurements ---
+    auto start = std::chrono::high_resolution_clock::now();
     CURLcode res = curl_easy_perform(m_curl);
+    auto curl_perform_complete = std::chrono::high_resolution_clock::now();
+    // --- End Timing measurements ---
+
     long http_code = 0;
     curl_easy_getinfo(m_curl, CURLINFO_RESPONSE_CODE, &http_code);
-    curl_slist_free_all(headers); // Free the header list
-
+    
     response.httpStatusCode = http_code;
 
     if (res != CURLE_OK) {
@@ -161,12 +162,18 @@ APIResponse ApiCommunicator::generateContent(LLMParameters params, std::string c
         }
     }
 
+    auto parsing_complete = std::chrono::high_resolution_clock::now();
+
+    // Output timing for debugging performance
+    std::cout << "curl_perform duration: " << std::chrono::duration_cast<std::chrono::milliseconds>(curl_perform_complete - start).count() << "ms" << std::endl;
+    std::cout << "parsing duration: " << std::chrono::duration_cast<std::chrono::milliseconds>(parsing_complete - curl_perform_complete).count() << "ms" << std::endl;
+
     logApiCall("N/A", json_payload, m_readBuffer, response); // agentId is not directly available here
 
     return response;
 }
 
-// Node's push method implementation for ApiCommunicator
+// Node's push method implementation for ApiCommunicator (used by ApiCommunicatorNode wrapper)
 bool ApiCommunicator::push(nlohmann::json data) {
     m_data_in = data; // Store incoming data
 
@@ -178,7 +185,7 @@ bool ApiCommunicator::push(nlohmann::json data) {
     if (data.contains("llm_params")) {
         nlohmann::json llm_params_json = data["llm_params"];
         params.model = llm_params_json.value("model", "gemini-pro");
-	params.instructions = llm_params_json.value("instructions","");
+        params.instructions = llm_params_json.value("instructions","");
         params.temperature = llm_params_json.value("temperature", 0.7f);
         params.topP = llm_params_json.value("topP", 0.9f);
         params.topK = llm_params_json.value("topK", 1);
@@ -189,10 +196,10 @@ bool ApiCommunicator::push(nlohmann::json data) {
         params = {"gemini-pro", 0.7f, 0.9f, 1, 1024, 5, ""};
         std::cerr << "ApiCommunicator Warning: 'llm_params' not found in incoming JSON. Using default LLM parameters." << std::endl;
     }
-	std::cout << "generating content..." << std::endl;
+    std::cout << "generating content..." << std::endl;
     // Call the core API generation logic
     APIResponse response = generateContent(params, content);
-	std::cout << "content generated!" << std::endl;
+    std::cout << "content generated!" << std::endl;
     // Convert APIResponse to JSON for m_data_out
     m_data_out = nlohmann::json();
     m_data_out["success"] = response.success;
@@ -200,11 +207,13 @@ bool ApiCommunicator::push(nlohmann::json data) {
     m_data_out["error_message"] = response.errorMessage;
     m_data_out["http_status_code"] = response.httpStatusCode;
 
+    std::cout << m_data_out << std::endl;
+
     return response.success; // Return success status of the API call
 }
 
 nlohmann::json ApiCommunicator::pull() {
-	return m_data_out;
+    return m_data_out;
 }
 
 // Parses the JSON response from the Gemini API
@@ -278,3 +287,4 @@ void ApiCommunicator::setDebuggingMode(bool enable) {
     m_debuggingEnabled = enable;
     std::cout << "ApiCommunicator Debugging: " << (m_debuggingEnabled ? "Enabled" : "Disabled") << std::endl;
 }
+

@@ -59,10 +59,11 @@ private:
     std::string m_apiKey;
     nlohmann::json m_data_in;
     nlohmann::json m_data_out;
-    
+
     bool m_debuggingEnabled = false; // Flag to enable/disable debugging logs
 
     CURL* m_curl; // The cURL easy handle for making HTTP requests
+    curl_slist* m_headers;
     static std::string m_readBuffer; // Static buffer to store API response data
 
     // Private helper methods
